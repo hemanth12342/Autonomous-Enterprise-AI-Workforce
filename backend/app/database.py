@@ -1,0 +1,106 @@
+"""
+Database engine, session factory, and base model.
+Uses SQLAlchemy async with asyncpg driver.
+"""
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from sqlalchemy import event, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import DeclarativeBase, MappedColumn, mapped_column
+from sqlalchemy import DateTime, func
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+import uuid
+
+from app.config import settings
+
+
+# ─── Async Engine ─────────────────────────────────────────────────────────────
+engine: AsyncEngine = create_async_engine(
+    settings.database_url,
+    echo=settings.debug,
+    pool_size=settings.database_pool_size,
+    max_overflow=settings.database_max_overflow,
+    pool_pre_ping=True,
+)
+
+# ─── Session Factory ──────────────────────────────────────────────────────────
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False,
+)
+
+
+# ─── Base Model ───────────────────────────────────────────────────────────────
+class Base(DeclarativeBase):
+    """Base ORM class — all models inherit this."""
+
+    id: MappedColumn[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        index=True,
+    )
+    created_at: MappedColumn[DateTime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: MappedColumn[DateTime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+# ─── Dependency ───────────────────────────────────────────────────────────────
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency for injecting async DB sessions."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+@asynccontextmanager
+async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
+    """Context manager for DB sessions outside FastAPI requests (workers, scripts)."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+# ─── Init DB ──────────────────────────────────────────────────────────────────
+async def init_db() -> None:
+    """Create all tables and enable pgvector extension."""
+    async with engine.begin() as conn:
+        # Enable pgvector extension
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        # Create all tables
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def close_db() -> None:
+    """Dispose engine connections on shutdown."""
+    await engine.dispose()
