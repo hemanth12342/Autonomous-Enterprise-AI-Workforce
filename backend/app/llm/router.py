@@ -56,10 +56,13 @@ def get_provider() -> LLMProvider:
     elif provider_name == "azure":
         from app.llm.openai_provider import OpenAIProvider  # Azure uses OpenAI-compatible API
         return OpenAIProvider()
+    elif provider_name == "openrouter":
+        from app.llm.openrouter_provider import OpenRouterProvider
+        return OpenRouterProvider()
     else:
-        # Default fallback
-        from app.llm.groq_provider import GroqProvider
-        return GroqProvider()
+        # Default fallback to OpenRouter
+        from app.llm.openrouter_provider import OpenRouterProvider
+        return OpenRouterProvider()
 
 
 class LLMRouter:

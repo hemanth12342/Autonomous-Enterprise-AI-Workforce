@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     neo4j_password: str = "neo4j_secret"
 
     # ─── LLM Providers ────────────────────────────────────────
-    llm_provider: Literal["openai", "groq", "azure", "bedrock"] = "groq"
+    llm_provider: Literal["openai", "groq", "azure", "bedrock", "openrouter"] = "openrouter"
 
     # OpenAI
     openai_api_key: str = ""
@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-1"
     aws_bedrock_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+    # OpenRouter
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct"
+    openrouter_fast_model: str = "meta-llama/llama-3.1-8b-instruct"
+    openrouter_site_url: str = "https://autonomous-enterprise-ai.vercel.app"
+    openrouter_app_name: str = "Autonomous Enterprise AI Workforce"
 
     # ─── Embeddings ───────────────────────────────────────────
     embedding_model: str = "text-embedding-3-small"
@@ -138,8 +145,9 @@ class Settings(BaseSettings):
             "groq": self.groq_model,
             "azure": self.azure_openai_deployment,
             "bedrock": self.aws_bedrock_model,
+            "openrouter": self.openrouter_model,
         }
-        return mapping.get(self.llm_provider, self.groq_model)
+        return mapping.get(self.llm_provider, self.openrouter_model)
 
     @property
     def active_fast_model(self) -> str:
@@ -148,8 +156,9 @@ class Settings(BaseSettings):
             "groq": self.groq_fast_model,
             "azure": self.azure_openai_deployment,
             "bedrock": self.aws_bedrock_model,
+            "openrouter": self.openrouter_fast_model,
         }
-        return mapping.get(self.llm_provider, self.groq_fast_model)
+        return mapping.get(self.llm_provider, self.openrouter_fast_model)
 
 
 @lru_cache
