@@ -69,7 +69,7 @@ class DocumentChunk(Base):
     )
 
     # Metadata for filtered retrieval
-    metadata: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    chunk_metadata: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     # Relationships
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")
