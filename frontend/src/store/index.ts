@@ -17,6 +17,7 @@ export interface AgentInfo {
   total_cost_usd: number;
   success_rate: number;
   current_task?: string;
+  capabilities?: string[];
 }
 
 export interface Project {
