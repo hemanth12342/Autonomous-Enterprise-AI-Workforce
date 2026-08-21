@@ -4,6 +4,7 @@ Uses SQLAlchemy async with asyncpg driver.
 """
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
 
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
@@ -20,13 +21,40 @@ import uuid
 from app.config import settings
 
 
+# ─── Build asyncpg-compatible URL ─────────────────────────────────────────────
+def _build_engine_args(raw_url: str):
+    """
+    asyncpg does NOT support ?sslmode= or ?channel_binding= query params.
+    Strip those params and pass ssl=True via connect_args instead.
+    """
+    parsed = urlparse(raw_url)
+    params = parse_qs(parsed.query)
+
+    # Detect if SSL was requested via the query string
+    needs_ssl = params.pop("sslmode", [""])[0] in ("require", "verify-ca", "verify-full")
+    params.pop("channel_binding", None)  # also unsupported by asyncpg
+
+    # Rebuild the URL without the stripped params
+    new_query = urlencode({k: v[0] for k, v in params.items()})
+    clean_url = urlunparse(parsed._replace(query=new_query))
+
+    connect_args = {}
+    if needs_ssl:
+        connect_args["ssl"] = True
+
+    return clean_url, connect_args
+
+
+_db_url, _connect_args = _build_engine_args(settings.database_url)
+
 # ─── Async Engine ─────────────────────────────────────────────────────────────
 engine: AsyncEngine = create_async_engine(
-    settings.database_url,
+    _db_url,
     echo=settings.debug,
     pool_size=settings.database_pool_size,
     max_overflow=settings.database_max_overflow,
     pool_pre_ping=True,
+    connect_args=_connect_args,
 )
 
 # ─── Session Factory ──────────────────────────────────────────────────────────
