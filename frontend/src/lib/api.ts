@@ -46,6 +46,8 @@ export const authApi = {
     form.append('password', password);
     return api.post('/auth/token', form, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).then((r) => r.data);
   },
+  // One-click demo login — auto-creates a demo user/org if none exists
+  demoLogin: () => api.post('/auth/demo-login').then((r) => r.data),
 };
 
 export const projectsApi = {

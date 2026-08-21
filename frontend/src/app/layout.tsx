@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'sonner';
+import AutoLogin from '@/components/AutoLogin';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body className={`${inter.variable} font-sans bg-surface-0 text-slate-100 antialiased`}>
+        <AutoLogin />
         {children}
         <Toaster
           theme="dark"
@@ -40,3 +42,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+
