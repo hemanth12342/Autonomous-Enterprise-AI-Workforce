@@ -17,16 +17,26 @@ from app.database import get_db
 from app.models.user import User
 
 # ─── Password Hashing ─────────────────────────────────────────────────────────
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use bcrypt with truncate_error=False to handle passwords of any length safely.
+# bcrypt has a 72-byte limit; we pre-truncate to avoid the passlib exception.
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
+def _safe_password(password: str) -> str:
+    """Truncate password to 72 bytes (bcrypt limit) safely."""
+    encoded = password.encode("utf-8")
+    if len(encoded) > 72:
+        encoded = encoded[:72]
+    return encoded.decode("utf-8", errors="ignore")
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_safe_password(password))
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(_safe_password(plain), hashed)
 
 
 # ─── Token Creation ───────────────────────────────────────────────────────────
