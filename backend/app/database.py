@@ -121,11 +121,21 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 # ─── Init DB ──────────────────────────────────────────────────────────────────
 async def init_db() -> None:
     """Create all tables and enable pgvector extension."""
+    # IMPORTANT: Import all models here so Base.metadata knows about every table
+    # before create_all is called. Without this, no tables are created.
+    import app.models  # noqa: F401
+
     async with engine.begin() as conn:
-        # Enable pgvector extension
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-        # Create all tables
+        # Enable pgvector extension (may fail if not available — that's ok)
+        try:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        except Exception:
+            pass
+        # Create all tables registered in Base.metadata
         await conn.run_sync(Base.metadata.create_all)
 
 
