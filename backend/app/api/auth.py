@@ -2,12 +2,16 @@
 Authentication API routes — register, login, refresh token.
 """
 import uuid
+import traceback
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.models.user import User, Organization, UserRole
@@ -47,43 +51,49 @@ class UserResponse(BaseModel):
 @router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user and organization."""
-    # Check email unique
-    result = await db.execute(select(User).where(User.email == req.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        # Check email unique
+        result = await db.execute(select(User).where(User.email == req.email))
+        if result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Create org
-    org = Organization(
-        name=req.org_name,
-        slug=req.org_name.lower().replace(" ", "-") + "-" + str(uuid.uuid4())[:8],
-    )
-    db.add(org)
-    await db.flush()
+        # Create org
+        org = Organization(
+            name=req.org_name,
+            slug=req.org_name.lower().replace(" ", "-") + "-" + str(uuid.uuid4())[:8],
+        )
+        db.add(org)
+        await db.flush()
 
-    # Create user
-    user = User(
-        organization_id=org.id,
-        email=req.email,
-        username=req.username,
-        full_name=req.full_name,
-        hashed_password=hash_password(req.password),
-        role=UserRole.ORG_ADMIN,
-        is_active=True,
-        is_verified=True,
-    )
-    db.add(user)
-    await db.flush()
+        # Create user
+        user = User(
+            organization_id=org.id,
+            email=req.email,
+            username=req.username,
+            full_name=req.full_name,
+            hashed_password=hash_password(req.password),
+            role=UserRole.ORG_ADMIN,
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(user)
+        await db.flush()
 
-    access_token = create_access_token(str(user.id), {"org_id": str(org.id), "role": user.role.value})
-    refresh_token = create_refresh_token(str(user.id))
+        access_token = create_access_token(str(user.id), {"org_id": str(org.id), "role": user.role.value})
+        refresh_token = create_refresh_token(str(user.id))
 
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user_id=str(user.id),
-        username=user.username,
-        role=user.role.value,
-    )
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_id=str(user.id),
+            username=user.username,
+            role=user.role.value,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Register failed: %s\n%s", e, traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Registration error: {str(e)}")
 
 
 @router.post("/token", response_model=TokenResponse)
