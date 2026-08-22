@@ -11,11 +11,20 @@ _redis: Optional[aioredis.Redis] = None
 
 async def init_redis() -> None:
     global _redis
+    # Upstash uses rediss:// (SSL). ssl_cert_reqs=None skips cert verification for hosted Redis.
+    ssl_kwargs = {}
+    if settings.redis_url.startswith("rediss://"):
+        import ssl
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        ssl_kwargs["ssl"] = ssl_ctx
     _redis = aioredis.from_url(
         settings.redis_url,
         encoding="utf-8",
         decode_responses=True,
         max_connections=20,
+        **ssl_kwargs,
     )
     await _redis.ping()
 
